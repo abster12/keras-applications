@@ -12,14 +12,7 @@ from __future__ import print_function
 
 import os
 
-from . import get_keras_submodule
-
-backend = get_keras_submodule('backend')
-engine = get_keras_submodule('engine')
-layers = get_keras_submodule('layers')
-models = get_keras_submodule('models')
-keras_utils = get_keras_submodule('utils')
-
+from . import get_submodules_from_kwargs
 from . import imagenet_utils
 from .imagenet_utils import decode_predictions
 from .imagenet_utils import _obtain_input_shape
@@ -39,7 +32,8 @@ def VGG19(include_top=True,
           input_tensor=None,
           input_shape=None,
           pooling=None,
-          classes=1000):
+          classes=1000,
+          **kwargs):
     """Instantiates the VGG19 architecture.
 
     Optionally loads weights pre-trained on ImageNet.
@@ -61,7 +55,7 @@ def VGG19(include_top=True,
             (with `channels_last` data format)
             or `(3, 224, 224)` (with `channels_first` data format).
             It should have exactly 3 inputs channels,
-            and width and height should be no smaller than 48.
+            and width and height should be no smaller than 32.
             E.g. `(200, 200, 3)` would be one valid value.
         pooling: Optional pooling mode for feature extraction
             when `include_top` is `False`.
@@ -85,6 +79,8 @@ def VGG19(include_top=True,
         ValueError: in case of invalid argument for `weights`,
             or invalid input shape.
     """
+    backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
+
     if not (weights in {'imagenet', None} or os.path.exists(weights)):
         raise ValueError('The `weights` argument should be either '
                          '`None` (random initialization), `imagenet` '
@@ -92,12 +88,12 @@ def VGG19(include_top=True,
                          'or the path to the weights file to be loaded.')
 
     if weights == 'imagenet' and include_top and classes != 1000:
-        raise ValueError('If using `weights` as imagenet with `include_top`'
+        raise ValueError('If using `weights` as `"imagenet"` with `include_top`'
                          ' as true, `classes` should be 1000')
     # Determine proper input shape
     input_shape = _obtain_input_shape(input_shape,
                                       default_size=224,
-                                      min_size=48,
+                                      min_size=32,
                                       data_format=backend.image_data_format(),
                                       require_flatten=include_top,
                                       weights=weights)
@@ -203,13 +199,13 @@ def VGG19(include_top=True,
     # Ensure that the model takes into account
     # any potential predecessors of `input_tensor`.
     if input_tensor is not None:
-        inputs = engine.get_source_inputs(input_tensor)
+        inputs = keras_utils.get_source_inputs(input_tensor)
     else:
         inputs = img_input
     # Create model.
     model = models.Model(inputs, x, name='vgg19')
 
-    # load weights
+    # Load weights.
     if weights == 'imagenet':
         if include_top:
             weights_path = keras_utils.get_file(

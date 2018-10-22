@@ -20,14 +20,7 @@ from __future__ import print_function
 
 import os
 
-from . import get_keras_submodule
-
-backend = get_keras_submodule('backend')
-engine = get_keras_submodule('engine')
-layers = get_keras_submodule('layers')
-models = get_keras_submodule('models')
-keras_utils = get_keras_submodule('utils')
-
+from . import get_submodules_from_kwargs
 from . import imagenet_utils
 from .imagenet_utils import decode_predictions
 from .imagenet_utils import _obtain_input_shape
@@ -36,8 +29,13 @@ from .imagenet_utils import _obtain_input_shape
 BASE_WEIGHT_URL = ('https://github.com/fchollet/deep-learning-models/'
                    'releases/download/v0.7/')
 
+backend = None
+layers = None
+models = None
+keras_utils = None
 
-def preprocess_input(x):
+
+def preprocess_input(x, **kwargs):
     """Preprocesses a numpy array encoding a batch of images.
 
     # Arguments
@@ -46,7 +44,7 @@ def preprocess_input(x):
     # Returns
         Preprocessed array.
     """
-    return imagenet_utils.preprocess_input(x, mode='tf')
+    return imagenet_utils.preprocess_input(x, mode='tf', **kwargs)
 
 
 def conv2d_bn(x,
@@ -181,7 +179,8 @@ def InceptionResNetV2(include_top=True,
                       input_tensor=None,
                       input_shape=None,
                       pooling=None,
-                      classes=1000):
+                      classes=1000,
+                      **kwargs):
     """Instantiates the Inception-ResNet v2 architecture.
 
     Optionally loads weights pre-trained on ImageNet.
@@ -201,7 +200,7 @@ def InceptionResNetV2(include_top=True,
             has to be `(299, 299, 3)` (with `'channels_last'` data format)
             or `(3, 299, 299)` (with `'channels_first'` data format).
             It should have exactly 3 inputs channels,
-            and width and height should be no smaller than 139.
+            and width and height should be no smaller than 75.
             E.g. `(150, 150, 3)` would be one valid value.
         pooling: Optional pooling mode for feature extraction
             when `include_top` is `False`.
@@ -223,6 +222,9 @@ def InceptionResNetV2(include_top=True,
         ValueError: in case of invalid argument for `weights`,
             or invalid input shape.
     """
+    global backend, layers, models, keras_utils
+    backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
+
     if not (weights in {'imagenet', None} or os.path.exists(weights)):
         raise ValueError('The `weights` argument should be either '
                          '`None` (random initialization), `imagenet` '
@@ -230,16 +232,16 @@ def InceptionResNetV2(include_top=True,
                          'or the path to the weights file to be loaded.')
 
     if weights == 'imagenet' and include_top and classes != 1000:
-        raise ValueError('If using `weights` as imagenet with `include_top`'
+        raise ValueError('If using `weights` as `"imagenet"` with `include_top`'
                          ' as true, `classes` should be 1000')
 
     # Determine proper input shape
     input_shape = _obtain_input_shape(
         input_shape,
         default_size=299,
-        min_size=139,
+        min_size=75,
         data_format=backend.image_data_format(),
-        require_flatten=False,
+        require_flatten=include_top,
         weights=weights)
 
     if input_tensor is None:
@@ -333,16 +335,16 @@ def InceptionResNetV2(include_top=True,
             x = layers.GlobalMaxPooling2D()(x)
 
     # Ensure that the model takes into account
-    # any potential predecessors of `input_tensor`
+    # any potential predecessors of `input_tensor`.
     if input_tensor is not None:
-        inputs = engine.get_source_inputs(input_tensor)
+        inputs = keras_utils.get_source_inputs(input_tensor)
     else:
         inputs = img_input
 
-    # Create model
+    # Create model.
     model = models.Model(inputs, x, name='inception_resnet_v2')
 
-    # Load weights
+    # Load weights.
     if weights == 'imagenet':
         if include_top:
             fname = 'inception_resnet_v2_weights_tf_dim_ordering_tf_kernels.h5'

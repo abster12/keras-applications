@@ -57,14 +57,7 @@ from __future__ import division
 import os
 import warnings
 
-from . import get_keras_submodule
-
-backend = get_keras_submodule('backend')
-engine = get_keras_submodule('engine')
-layers = get_keras_submodule('layers')
-models = get_keras_submodule('models')
-keras_utils = get_keras_submodule('utils')
-
+from . import get_submodules_from_kwargs
 from . import imagenet_utils
 from .imagenet_utils import decode_predictions
 from .imagenet_utils import _obtain_input_shape
@@ -73,12 +66,13 @@ from .imagenet_utils import _obtain_input_shape
 BASE_WEIGHT_PATH = ('https://github.com/fchollet/deep-learning-models/'
                     'releases/download/v0.6/')
 
+backend = None
+layers = None
+models = None
+keras_utils = None
 
-def relu6(x):
-    return backend.relu(x, max_value=6)
 
-
-def preprocess_input(x):
+def preprocess_input(x, **kwargs):
     """Preprocesses a numpy array encoding a batch of images.
 
     # Arguments
@@ -87,7 +81,7 @@ def preprocess_input(x):
     # Returns
         Preprocessed array.
     """
-    return imagenet_utils.preprocess_input(x, mode='tf')
+    return imagenet_utils.preprocess_input(x, mode='tf', **kwargs)
 
 
 def MobileNet(input_shape=None,
@@ -98,14 +92,9 @@ def MobileNet(input_shape=None,
               weights='imagenet',
               input_tensor=None,
               pooling=None,
-              classes=1000):
+              classes=1000,
+              **kwargs):
     """Instantiates the MobileNet architecture.
-
-    To load a MobileNet model via `load_model`, import the custom
-    objects `relu6` and pass them to the `custom_objects` parameter.
-    E.g.
-    model = load_model('mobilenet.h5', custom_objects={
-                       'relu6': mobilenet.relu6})
 
     # Arguments
         input_shape: optional shape tuple, only to be specified
@@ -159,6 +148,8 @@ def MobileNet(input_shape=None,
         RuntimeError: If attempting to run this model with a
             backend that does not support separable convolutions.
     """
+    global backend, layers, models, keras_utils
+    backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
 
     if not (weights in {'imagenet', None} or os.path.exists(weights)):
         raise ValueError('The `weights` argument should be either '
@@ -167,7 +158,7 @@ def MobileNet(input_shape=None,
                          'or the path to the weights file to be loaded.')
 
     if weights == 'imagenet' and include_top and classes != 1000:
-        raise ValueError('If using `weights` as ImageNet with `include_top` '
+        raise ValueError('If using `weights` as `"imagenet"` with `include_top` '
                          'as true, `classes` should be 1000')
 
     # Determine proper input shape and default size.
@@ -292,14 +283,14 @@ def MobileNet(input_shape=None,
     # Ensure that the model takes into account
     # any potential predecessors of `input_tensor`.
     if input_tensor is not None:
-        inputs = engine.get_source_inputs(input_tensor)
+        inputs = keras_utils.get_source_inputs(input_tensor)
     else:
         inputs = img_input
 
     # Create model.
     model = models.Model(inputs, x, name='mobilenet_%0.2f_%s' % (alpha, rows))
 
-    # load weights
+    # Load weights.
     if weights == 'imagenet':
         if backend.image_data_format() == 'channels_first':
             raise ValueError('Weights for "channels_first" format '
@@ -392,7 +383,7 @@ def _conv_block(inputs, filters, alpha, kernel=(3, 3), strides=(1, 1)):
                       strides=strides,
                       name='conv1')(x)
     x = layers.BatchNormalization(axis=channel_axis, name='conv1_bn')(x)
-    return layers.Activation(relu6, name='conv1_relu')(x)
+    return layers.ReLU(6., name='conv1_relu')(x)
 
 
 def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
@@ -464,7 +455,7 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                                name='conv_dw_%d' % block_id)(x)
     x = layers.BatchNormalization(
         axis=channel_axis, name='conv_dw_%d_bn' % block_id)(x)
-    x = layers.Activation(relu6, name='conv_dw_%d_relu' % block_id)(x)
+    x = layers.ReLU(6., name='conv_dw_%d_relu' % block_id)(x)
 
     x = layers.Conv2D(pointwise_conv_filters, (1, 1),
                       padding='same',
@@ -473,4 +464,4 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                       name='conv_pw_%d' % block_id)(x)
     x = layers.BatchNormalization(axis=channel_axis,
                                   name='conv_pw_%d_bn' % block_id)(x)
-    return layers.Activation(relu6, name='conv_pw_%d_relu' % block_id)(x)
+    return layers.ReLU(6., name='conv_pw_%d_relu' % block_id)(x)
