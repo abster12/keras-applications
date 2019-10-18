@@ -24,7 +24,7 @@ https://github.com/tensorflow/models/tree/master/research/slim/nets/nasnet
 # References
 
  - [Learning Transferable Architectures for Scalable Image Recognition]
-    (https://arxiv.org/abs/1707.07012)
+    (https://arxiv.org/abs/1707.07012) (CVPR 2018)
 
 This model is based on the following implementations:
 
@@ -114,10 +114,10 @@ def NASNet(input_shape=None,
             when `include_top` is `False`.
             - `None` means that the output of the model
                 will be the 4D tensor output of the
-                last convolutional layer.
+                last convolutional block.
             - `avg` means that global average pooling
                 will be applied to the output of the
-                last convolutional layer, and thus
+                last convolutional block, and thus
                 the output of the model will be a
                 2D tensor.
             - `max` means that global max pooling will
@@ -164,7 +164,7 @@ def NASNet(input_shape=None,
                                       default_size=default_size,
                                       min_size=32,
                                       data_format=backend.image_data_format(),
-                                      require_flatten=include_top,
+                                      require_flatten=True,
                                       weights=weights)
 
     if backend.image_data_format() != 'channels_last':
